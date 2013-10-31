@@ -1,10 +1,12 @@
 from email.MIMEText import MIMEText
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
+from decimal import Decimal
 import os
 import re
 import smtplib
 import subprocess
+import logging
 
 # Requires Xfvb. "Xvfb :99 -ac", and "export DISPLAY=:99" to load the Firefox driver
 subprocess.Popen(["Xvfb", ":99", "-ac"])
@@ -12,13 +14,14 @@ os.environ["DISPLAY"] = ":99"
 
 
 # ==============================
-# Required account information
+# CONFIG
 # ==============================
 
-CARD_NUMBER = '000000000000'  # TD access card number
-PASSWORD = 'pass'  # TD online account password
+#TD EasyWeb card number and password
+CARD_NUMBER = '000000000000000'
+PASSWORD = '...'
 
-# Security questions and answers. These are case sensitive.
+#The TD security questions
 SECURITY_QUESTIONS = (
     ('What is the first name of your best childhood friend', '...'),
     ('As a child, what did you want to be when you grew up?', '...'),
@@ -27,19 +30,28 @@ SECURITY_QUESTIONS = (
     ('What was the name of your high school?', '...'),
 )
 
-# Email server information
-SMTP_USERNAME = 'user'
-SMTP_PASSWORD = 'pass'
-SMTP_SERVER = 'smtp.emailserver.com:587'
+#SMTP server used to send emails
+SMTP_USERNAME = '...'
+SMTP_PASSWORD = '...'
+SMTP_SERVER = '...'
 
-EMAIL_FROM = 'bot@emailserver.com'
-EMAIL_TO = 'wiseguy@gmail.com'
+EMAIL_FROM = '...'  # The email of the sender
+EMAIL_TO = '...'  # The recipient of the balance emails. You can use SMS gateways to send messages to phones.
+
+LOG_PATH = '/var/log/log.txt'  # Errors are logged there
+
+
+# ==============================
+# Prepare the logger
+# ==============================
+
+logging.basicConfig(filename=LOG_PATH,level=logging.INFO,format='%(asctime)s %(message)s')
 
 # ==============================
 # Scrape the info from TD Canada
 # ==============================
 
-print "Scraping account information from TD Canada..."
+logging.info("Scraping account information from TD Canada...")
 
 #Set up driver
 driver = webdriver.Firefox()
@@ -62,14 +74,14 @@ try:
     security_question = driver.find_element_by_css_selector("#mfaQuestion")
 except NoSuchElementException, e:
     # No question, move on
-    print('No security question')
+    logging.info('No security question')
 else:
     # Known questions and answers
-    print('Security question: ' + security_question.text)
+    logging.info('Security question: ' + security_question.text)
     # Try each question/answer combo
     for question, answer in SECURITY_QUESTIONS:
         if question in security_question.text:
-            print('Security answer: ' + answer)
+            logging.info('Security answer: ' + answer)
             driver.find_element_by_name("answer").send_keys(answer)
             driver.find_element_by_css_selector("#btnMFALogin").click()
             break
@@ -78,17 +90,16 @@ else:
 try:
     account_rows = driver.find_elements_by_css_selector("table.myAccounts tr")
 except NoSuchElementException, e:
-    print "Couldn't parse accounts"
-    accounts = []
+    logging.error("Couldn't parse accounts")
+    account_rows = []
 
 #Parse the scraped data to retrieve the balances
-print "Parsing account data..."
+logging.info("Parsing account data...")
 content = ""
 splitter = re.compile(r'\d')
-accounts = []
 
 #Parse each row
-accounts = []
+accounts = {}
 for row in account_rows[1:]:
     try:
         #Get and shorten account names
@@ -99,12 +110,12 @@ for row in account_rows[1:]:
         balance = row.find_element_by_css_selector('td:last-child a').text.replace(',', '').replace('$', '')
 
         #Add to the pile
-        accounts.append((title, balance))
+        accounts[title.strip().lower()] = Decimal(balance)
     except NoSuchElementException:
         pass  # Doesn't matter.
 
 if len(accounts) == 0:
-    print("No accounts found.")
+    logging.warning("No accounts found.")
 
 driver.quit()
 
