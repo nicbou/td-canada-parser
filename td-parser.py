@@ -124,11 +124,11 @@ driver.quit()
 # Send an SMS with the balance
 # ============================
 
-print "Sending balance to cellphone..."
+logging.info("No accounts found.")
 
 content = ""
-for account in accounts:
-    content += "%s: $%s\n" % (account[0], account[1])
+for name,account in accounts.iteritems():
+    content += "%s: $%s\n" % (name, account)
 
 # Message
 message = MIMEText(content, 'plain')
@@ -144,4 +144,4 @@ server.login(SMTP_USERNAME, SMTP_PASSWORD)
 server.sendmail(EMAIL_FROM, EMAIL_TO, message.as_string())
 server.quit()
 
-print "Done."
+logging.info("Success.")
