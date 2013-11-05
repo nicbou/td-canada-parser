@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+from pyvirtualdisplay import Display
 from email.MIMEText import MIMEText
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
@@ -7,10 +10,6 @@ import re
 import smtplib
 import subprocess
 import logging
-
-# Requires Xfvb. "Xvfb :99 -ac", and "export DISPLAY=:99" to load the Firefox driver
-subprocess.Popen(["Xvfb", ":99", "-ac"])
-os.environ["DISPLAY"] = ":99"
 
 
 # ==============================
@@ -23,11 +22,19 @@ PASSWORD = '...'
 
 #The TD security questions
 SECURITY_QUESTIONS = (
-    ('What is the first name of your best childhood friend', '...'),
-    ('As a child, what did you want to be when you grew up?', '...'),
-    ('What is your nickname?', '...'),
-    ('What is your favourite hobby?', '...'),
-    ('What was the name of your high school?', '...'),
+    ('...', '...'),
+    ('...', '...'),
+    ('...', '...'),
+    ('...', '...'),
+    ('...', '...'),
+)
+
+#Accounts numbers and display name.
+#The number MUST be the exact same as on your account page
+ACCOUNTS_TO_FETCH = (
+	('...','...'),
+	('...','...'),
+	('...','...'),
 )
 
 #SMTP server used to send emails
@@ -38,18 +45,23 @@ SMTP_SERVER = '...'
 EMAIL_FROM = '...'  # The email of the sender
 EMAIL_TO = '...'  # The recipient of the balance emails. You can use SMS gateways to send messages to phones.
 
-LOG_PATH = '/var/log/log.txt'  # Errors are logged there
+LOG_PATH = '/var/log/td-parser-log.txt'  # Errors are logged there
 
 
 # ==============================
 # Prepare the logger
 # ==============================
 
-logging.basicConfig(filename=LOG_PATH,level=logging.INFO,format='%(asctime)s %(message)s')
+logging.basicConfig(filename=LOG_PATH,level=logging.INFO,format='%(levelname)s %(asctime)s %(message)s')
 
 # ==============================
 # Scrape the info from TD Canada
 # ==============================
+
+# Starting a false graphical interface to open the browser
+# Requires pyvirtualdisplay (which requires Xvfb)
+display = Display(visible=0, size=(800, 600))
+display.start()
 
 logging.info("Scraping account information from TD Canada...")
 
@@ -87,48 +99,51 @@ else:
             break
 
 # Fetch the account list
+logging.info("Trying to fetch accounts list from " + driver.title)
 try:
+	accounts = {}
     account_rows = driver.find_elements_by_css_selector("table.myAccounts tr")
 except NoSuchElementException, e:
-    logging.error("Couldn't parse accounts")
-    account_rows = []
-
-#Parse the scraped data to retrieve the balances
-logging.info("Parsing account data...")
-content = ""
-splitter = re.compile(r'\d')
-
-#Parse each row
-accounts = {}
-for row in account_rows[1:]:
-    try:
-        #Get and shorten account names
-        title = row.find_element_by_css_selector('td:first-child a').text
-        title = splitter.split(title)[0].replace("TD HIGH INTEREST SAVINGS ACCOUNT", "EPARGNES").replace("HIGH INTEREST TFSA SAVINGS ACCOUNT", "CELI")
-
-        #Get the balance
-        balance = row.find_element_by_css_selector('td:last-child a').text.replace(',', '').replace('$', '')
-
-        #Add to the pile
-        accounts[title.strip().lower()] = Decimal(balance)
-    except NoSuchElementException:
-        pass  # Doesn't matter.
-
-if len(accounts) == 0:
-    logging.warning("No accounts found.")
+    logging.error("Couldn't fetch accounts list")
+else:
+	#Parse the scraped data to retrieve the balances
+	logging.info("Parsing account data...")
+	
+	#Parse each row
+	for row in account_rows[1:]:
+		try:
+			#Get and shorten account names
+			account_title = row.find_element_by_css_selector('td:first-child a').text
+			
+			#Try each account name/account display name combo
+			for account_name, account_display_name in ACCOUNTS_TO_FETCH:
+				if account_title in account_name:
+					title = account_display_name
+			
+					#Get the balance
+					balance = row.find_element_by_css_selector('td:last-child a').text.replace(',', '').replace('$', '')
+	
+					#Add to the pile
+					accounts[title.strip().lower()] = Decimal(balance)
+		except NoSuchElementException:
+			pass  # Doesn't matter.
 
 driver.quit()
-
+display.stop()
 
 # ============================
 # Send an SMS with the balance
 # ============================
 
-logging.info("No accounts found.")
+logging.info("Trying to send balance via email to cellphone")
 
-content = ""
-for name,account in accounts.iteritems():
-    content += "%s: $%s\n" % (name, account)
+content = "\n"
+if len(accounts) == 0:
+    logging.warning("No accounts found, will send notification anyway")
+	content += "Failed to get your accounts balance. Read log in " + LOG_PATH + " for further details"
+else:
+	for name,account in accounts.iteritems():
+		content += "%s: $%s\n" % (name, account)
 
 # Message
 message = MIMEText(content, 'plain')
@@ -144,4 +159,4 @@ server.login(SMTP_USERNAME, SMTP_PASSWORD)
 server.sendmail(EMAIL_FROM, EMAIL_TO, message.as_string())
 server.quit()
 
-logging.info("Success.")
+logging.info("Email successfully sent, program will now quit...")
