@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 
-from pyvirtualdisplay import Display
 from email.MIMEText import MIMEText
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from decimal import Decimal
-import os
-import re
 import smtplib
-import subprocess
 import logging
 
 
@@ -22,11 +18,11 @@ PASSWORD = '...'
 
 #The TD security questions
 SECURITY_QUESTIONS = (
-    ('...', '...'),
-    ('...', '...'),
-    ('...', '...'),
-    ('...', '...'),
-    ('...', '...'),
+	('...', '...'),
+	('...', '...'),
+	('...', '...'),
+	('...', '...'),
+	('...', '...'),
 )
 
 #Accounts numbers and display name.
@@ -58,16 +54,11 @@ logging.basicConfig(filename=LOG_PATH,level=logging.INFO,format='%(levelname)s %
 # Scrape the info from TD Canada
 # ==============================
 
-# Starting a false graphical interface to open the browser
-# Requires pyvirtualdisplay (which requires Xvfb)
-display = Display(visible=0, size=(800, 600))
-display.start()
-
 logging.info("Scraping account information from TD Canada...")
 
 #Set up driver
-driver = webdriver.Firefox()
-driver.implicitly_wait(10)
+driver = webdriver.PhantomJS()
+driver.implicitly_wait(5)
 base_url = "https://w.tdgroup.com/"
 verificationErrors = []
 accept_next_alert = True
@@ -82,29 +73,29 @@ driver.find_element_by_css_selector("input.buttonOrange").click()
 
 #Bypass security questions
 try:
-    # Check if there's a security question
-    security_question = driver.find_element_by_css_selector("#mfaQuestion")
+	# Check if there's a security question
+	security_question = driver.find_element_by_css_selector("#mfaQuestion")
 except NoSuchElementException, e:
-    # No question, move on
-    logging.info('No security question')
+	# No question, move on
+	logging.info('No security question')
 else:
-    # Known questions and answers
-    logging.info('Security question: ' + security_question.text)
-    # Try each question/answer combo
-    for question, answer in SECURITY_QUESTIONS:
-        if question in security_question.text:
-            logging.info('Security answer: ' + answer)
-            driver.find_element_by_name("answer").send_keys(answer)
-            driver.find_element_by_css_selector("#btnMFALogin").click()
-            break
+	# Known questions and answers
+	logging.info('Security question: ' + security_question.text)
+	# Try each question/answer combo
+	for question, answer in SECURITY_QUESTIONS:
+		if question in security_question.text:
+			logging.info('Security answer: ' + answer)
+			driver.find_element_by_name("answer").send_keys(answer)
+			driver.find_element_by_css_selector("#btnMFALogin").click()
+			break
 
 # Fetch the account list
 logging.info("Trying to fetch accounts list from " + driver.title)
 try:
 	accounts = {}
-    account_rows = driver.find_elements_by_css_selector("table.myAccounts tr")
+	account_rows = driver.find_elements_by_css_selector("table.myAccounts tr")
 except NoSuchElementException, e:
-    logging.error("Couldn't fetch accounts list")
+	logging.error("Couldn't fetch accounts list")
 else:
 	#Parse the scraped data to retrieve the balances
 	logging.info("Parsing account data...")
@@ -129,7 +120,6 @@ else:
 			pass  # Doesn't matter.
 
 driver.quit()
-display.stop()
 
 # ============================
 # Send an SMS with the balance
@@ -139,7 +129,7 @@ logging.info("Trying to send balance via email to cellphone")
 
 content = "\n"
 if len(accounts) == 0:
-    logging.warning("No accounts found, will send notification anyway")
+	logging.warning("No accounts found, will send notification anyway")
 	content += "Failed to get your accounts balance. Read log in " + LOG_PATH + " for further details"
 else:
 	for name,account in accounts.iteritems():

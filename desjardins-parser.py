@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from pyvirtualdisplay import Display
 from email.MIMEText import MIMEText
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
@@ -59,11 +58,6 @@ logging.basicConfig(filename=LOG_PATH, level=logging.INFO, format='%(levelname)s
 # Scrape the info from AccesD
 # ==============================
 
-# Starting a false graphical interface to open the browser
-# Requires pyvirtualdisplay (which requires Xvfb)
-display = Display(visible=0, size=(800, 600))
-display.start()
-
 logging.info("Scraping account information from AccesD Desjardins")
 
 #Requires IceWeasel
@@ -77,7 +71,7 @@ while try_number > 0: # Had to do this while as my Raspberry Pi sometimes encoun
 				driver.quit() # In case a previous run left traces
 			except:
 				pass
-		driver = webdriver.Firefox()
+		driver = webdriver.PhantomJS()
 		logging.info("Driver successfully started")
 		try_number = 0
 	except:
@@ -110,7 +104,6 @@ except NoSuchElementException, e:
 		# No question, move on
 		logging.error("Something went wrong, can't connect to Desjardins' Website, quitting program...")
 		driver.quit()
-		display.stop()
 		sys.exit(0)
 	else:
 		try:
@@ -118,7 +111,6 @@ except NoSuchElementException, e:
 		except NoSuchElementException, e:
 			logging.error("Question not found, quitting program...")
 			driver.quit()
-			display.stop()
 			sys.exit(0)
 		else:
 			# Known questions and answers
@@ -137,7 +129,6 @@ try:
 except NoSuchElementException, e:
 	logging.error("Something went wrong, can't connect to Desjardins\' Website, quitting program...")
 	driver.quit()
-	display.stop()
 	sys.exit(0)
 else:
 	#Logging in
@@ -188,7 +179,6 @@ else:
 	logging.info("Accounts parsed successfully")
 
 driver.quit()
-display.stop()
 
 # ============================
 # Send an SMS with the balance
