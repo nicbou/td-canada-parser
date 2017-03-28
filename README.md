@@ -9,7 +9,7 @@ The script is rather straightforward to use:
 1. Create the log file and make it writable
 1. Mark the script as executable and run it
 
-##Extending the script
+## Extending the script
 
 Since the base script is rather simple, you can extend it to send the balance with Twilio or Pushover.
 
